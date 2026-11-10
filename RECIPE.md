@@ -1,9 +1,9 @@
 # Agent Usage
 
 Your coding agents' rate limits in Herdr's status bar. After "N agents", each
-agent's logo is followed by how much of its tightest limit you've used: Claude
-and Antigravity by default. Click it for a popup listing every limit window
-(5-hour, weekly, per model group), each with a bar and the time until it resets.
+agent's logo is followed by how much of its 5-hour limit you've used: Claude
+and Antigravity by default. Click it for a popup with the weekly limits (and
+Copilot's monthly ones), each with a bar and the time until it resets.
 
 ![Agent Usage](preview.png)
 
@@ -13,26 +13,29 @@ and Antigravity by default. Click it for a popup listing every limit window
   background, 11.8px `muted` text): `This computer · <branch> · ● N agents`,
   then the usage item, then the palette hint on the right as before.
 - **Usage item:** a 13px gauge icon, then per agent a 13px logo and a
-  percentage (`22%`), 10px apart, 4px between logo and number. It's a rounded
+  5-hour percentage (`13%`), 10px apart, 4px between logo and number. It's a rounded
   (4px) button with 6px side padding and a `hover` background.
   - Number color: `muted` under 70%, `ansi3` (yellow) from 70%, `blocked`
     (red) from 90%, `dim` when the last refresh failed. `–` when the agent
     has no numbers yet.
   - Before the first answer the item reads `usage…`. While a refresh runs
     the gauge turns `working`.
-- **Popup** (`popup`, 320 x 580, `popover` background, 12px padding, 12px
-  gaps, scrolls): `Agent usage` (semibold) with `updated just now / 3m ago`
+- **Popup** (`popup`, 320 x 440, `popover` background, 12px padding, 12px
+  gaps, scrolls): `Weekly usage` (semibold) with `updated just now / 3m ago`
   (10.5px `dim`) on the right. Per agent: a 14px logo and the name
-  (semibold, `muted`), then each window: label left (`muted`, 11.5px),
+  (semibold, `muted`), then each window that isn't a 5-hour one: label left (`muted`, 11.5px),
   `N% used` right (`foreground`), a 4px bar (`raised` track, `accent` fill,
-  yellow/red past 70/90%), and `resets in 4h 12m` / `resets in 5d 18h`
+  yellow/red past 70/90%), and `resets in 3d 8h` / `resets in 20d 5h`
   (10.5px `dim`). Errors show in `blocked` color under the name.
 
 ## How it behaves
 
 - Refreshes every 60 seconds, and when the usage item is clicked (which
   also opens the popup). Esc closes the popup.
-- The bar shows each agent's tightest window (the highest `used`). Agents
+- The bar shows each agent's tightest 5-hour window (Antigravity has two,
+  one per model group: the higher one wins); an agent with no 5-hour window
+  shows its tightest window of any kind. The popup lists the other windows
+  (weekly, and Copilot's monthly ones); 5-hour reset times aren't shown. Agents
   marked `bar: false` (Copilot by default) are left out of the bar and
   still listed in the popup.
 - A failed refresh (offline, HTTP 429) keeps the agent's last numbers,
@@ -49,19 +52,20 @@ and Antigravity by default. Click it for a popup listing every limit window
   count. Point the layout's status block (id `status`, `"content": { "mod": ... }`,
   28px, at the bottom) at it.
   - `usage.js`: one async function per agent returning
-    `{ id, name, icon, tint?, bar?, windows: [{ label, used, resetsAt }], error? }`.
-    `used` is 0-100, `resetsAt` ISO or null. `icon` is Herdr's own
+    `{ id, name, icon, tint?, bar?, windows: [{ label, kind, used, resetsAt }], error? }`.
+    `kind` is `"5h"`, `"week"` or `"month"`; `used` is 0-100, `resetsAt` ISO
+    or null. `peak(p, "5h")` gives the bar's number. `icon` is Herdr's own
     `icons/<agent>.svg`. `tint: true` draws it with `svg()` in `muted`
     (single-color logos), otherwise `image()` keeps its colors.
   - `main.js`: `cx.timer.every(60000)` calls `fetchUsage()` (all agents in
     parallel, each wrapped so one failure doesn't stop the others), merges
     with the previous value (`keepLast`) and stores it with
     `setShared("agent-usage", …)`. On click:
-    `openOverlay({ mod: "agent-usage-popup", kind: "popup", width: 320, height: 580 })`.
+    `openOverlay({ mod: "agent-usage-popup", kind: "popup", width: 320, height: 440 })`.
   - `gauge.svg`: a lucide-style gauge, `currentColor`.
 - `mods/agent-usage-popup/`: renders `shared("agent-usage")` only, no
-  fetching. Its `mod.json` has
-  `"overlay": { "kind": "popup", "width": 320, "height": 580 }`, so
+  fetching, and skips windows with `kind: "5h"`. Its `mod.json` has
+  `"overlay": { "kind": "popup", "width": 320, "height": 440 }`, so
   `mod.open` opens it too.
 - Where the numbers come from:
   - **Claude:** `~/.claude/herdr-rate-limits.json`, written by
@@ -120,11 +124,12 @@ and Antigravity by default. Click it for a popup listing every limit window
 ## Done when
 
 - `herdr-app check` passes for both mod folders.
-- The status bar shows the gauge, then a logo and percentage for Claude
-  and Antigravity, right after `N agents`.
-- Clicking the usage item opens the popup listing Claude (5-hour, Weekly),
-  Antigravity (four windows) and Copilot, with bars and reset times, and
-  `updated just now`.
+- The status bar shows the gauge, then a logo and the 5-hour percentage
+  for Claude and Antigravity, right after `N agents`.
+- Clicking the usage item opens `Weekly usage` listing Claude (Weekly),
+  Antigravity (Gemini · Weekly, Claude and GPT · Weekly) and Copilot (Chat,
+  Completions), with bars and reset times, and `updated just now`.
+- The bar's Claude number matches the 5-hour line of Claude Code's `/usage`.
 - After a Claude Code reply, `~/.claude/herdr-rate-limits.json` exists and
   the Claude numbers in the popup match Claude Code's `/usage`.
 - Two refreshes, read from `shared.json`'s `agent-usage.updatedAt`, are

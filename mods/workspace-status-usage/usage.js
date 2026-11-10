@@ -1,6 +1,7 @@
 import { exec, home, readTextFile } from "herdr";
 
-// Each provider answers { id, name, icon, tint?, windows: [{ label, used, resetsAt }], error }.
+// Each provider answers { id, name, icon, tint?, windows: [{ label, kind, used, resetsAt }], error }.
+// `kind` is "5h", "week" or "month": the bar shows the 5-hour windows, the popup the rest.
 // `used` is a percentage 0-100; `resetsAt` an ISO time or null.
 // `icon` is a path under ~/.config/herdr-app; `tint` means it takes the text color (svg) rather than its own (image).
 // `bar: false` leaves the provider out of the status bar; the popup still lists it.
@@ -12,12 +13,13 @@ async function claude() {
   const saved = JSON.parse((await readTextFile(`${home()}/.claude/herdr-rate-limits.json`)) ?? "null");
   if (saved?.rate_limits) {
     const now = Date.now() / 1000;
-    const win = (label, w) => w && {
+    const win = (label, kind, w) => w && {
       label,
+      kind,
       used: w.resets_at && w.resets_at < now ? 0 : w.used_percentage ?? 0,
       resetsAt: w.resets_at && w.resets_at >= now ? new Date(w.resets_at * 1000).toISOString() : null,
     };
-    return { ...base, windows: [win("5-hour", saved.rate_limits.five_hour), win("Weekly", saved.rate_limits.seven_day)].filter(Boolean) };
+    return { ...base, windows: [win("5-hour", "5h", saved.rate_limits.five_hour), win("Weekly", "week", saved.rate_limits.seven_day)].filter(Boolean) };
   }
   const creds = JSON.parse((await readTextFile(`${home()}/.claude/.credentials.json`)) ?? "{}");
   const token = creds.claudeAiOauth?.accessToken;
@@ -29,12 +31,12 @@ async function claude() {
   if (r.status === 401) return { ...base, error: "Token expired: run Claude Code once to refresh it" };
   if (!r.ok) return { ...base, error: `HTTP ${r.status}` };
   const d = await r.json();
-  const win = (label, w) => w && { label, used: w.utilization ?? 0, resetsAt: w.resets_at ?? null };
+  const win = (label, kind, w) => w && { label, kind, used: w.utilization ?? 0, resetsAt: w.resets_at ?? null };
   return { ...base, windows: [
-    win("5-hour", d.five_hour),
-    win("Weekly", d.seven_day),
-    win("Weekly Opus", d.seven_day_opus),
-    win("Weekly Sonnet", d.seven_day_sonnet),
+    win("5-hour", "5h", d.five_hour),
+    win("Weekly", "week", d.seven_day),
+    win("Weekly Opus", "week", d.seven_day_opus),
+    win("Weekly Sonnet", "week", d.seven_day_sonnet),
   ].filter(Boolean) };
 }
 
@@ -49,6 +51,7 @@ async function antigravity() {
   const short = (g) => g.replace(/ models?$/i, "");
   return { ...base, windows: groups.flatMap((g) => g.buckets.map((b) => ({
     label: `${short(g.name)} · ${b.window === "5h" ? "5-hour" : "Weekly"}`,
+    kind: b.window === "5h" ? "5h" : "week",
     used: Math.round((1 - b.remaining_fraction) * 1000) / 10,
     resetsAt: b.reset_time ?? null,
   }))) };
@@ -66,7 +69,7 @@ async function copilot() {
   const d = await r.json();
   const q = d.quota_snapshots ?? {};
   const reset = d.quota_reset_date ?? null;
-  const win = (label, s) => s && !s.unlimited && s.entitlement > 0 && { label, used: Math.round((100 - s.percent_remaining) * 10) / 10, resetsAt: reset };
+  const win = (label, s) => s && !s.unlimited && s.entitlement > 0 && { label, kind: "month", used: Math.round((100 - s.percent_remaining) * 10) / 10, resetsAt: reset };
   return { ...base, windows: [
     win("Premium requests", q.premium_interactions),
     win("Chat", q.chat),
@@ -83,9 +86,10 @@ export async function fetchUsage() {
   return { updatedAt: Date.now(), providers: results };
 }
 
-// The tightest window: what the status bar shows for a provider.
-export function peak(p) {
-  return p.windows.reduce((m, w) => Math.max(m, w.used), -1);
+// The tightest window of a kind ("5h" for the status bar); any window when it has none of that kind.
+export function peak(p, kind) {
+  const of = p.windows.filter((w) => w.kind === kind);
+  return (of.length ? of : p.windows).reduce((m, w) => Math.max(m, w.used), -1);
 }
 
 export function tone(t, used) {

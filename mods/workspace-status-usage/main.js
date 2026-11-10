@@ -53,7 +53,7 @@ export default class WorkspaceStatus extends View {
   usage(t) {
     const data = shared(USAGE);
     const items = (data?.providers ?? []).filter((p) => p.bar !== false).map((p) => {
-      const used = peak(p);
+      const used = peak(p, "5h");
       return h_flex().gap(4).items_center()
         .child(logo(t, p, 13))
         .child(div().text_color(p.error || used < 0 ? t.dim : tone(t, used)).child(used < 0 ? "–" : `${Math.round(used)}%`));
@@ -61,7 +61,7 @@ export default class WorkspaceStatus extends View {
     return h_flex().id("usage").gap(10).items_center().px(6).rounded(4).hover((s) => s.bg(t.hover))
       .on_click((_e, cx) => {
         this.refresh(cx);
-        openOverlay({ mod: "agent-usage-popup", kind: "popup", width: 320, height: 580 });
+        openOverlay({ mod: "agent-usage-popup", kind: "popup", width: 320, height: 440 });
       })
       .child(svg("mods/workspace-status-usage/gauge.svg").size(13).when(this.loading, (el) => el.text_color(t.working)))
       .when(items.length === 0, (el) => el.child(div().text_color(t.dim).child("usage…")))

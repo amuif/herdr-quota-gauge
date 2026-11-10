@@ -3,6 +3,7 @@ import { h_flex, v_flex } from "gpui-base";
 import { theme, shared } from "herdr";
 
 // Opened from the status bar's usage item; it fetches, this only shows what it shared.
+// The bar already shows the 5-hour windows, so this lists the longer ones (weekly, monthly).
 const USAGE = "agent-usage";
 
 function ago(ms) {
@@ -39,7 +40,7 @@ export default class AgentUsagePopup extends View {
     const data = shared(USAGE);
     return v_flex().id("root").size_full().overflow_y_scrollbar().p(12).gap(12).bg(t.popover).text_size(12).text_color(t.foreground)
       .child(h_flex().justify_between().items_center()
-        .child(div().font_semibold().child("Agent usage"))
+        .child(div().font_semibold().child("Weekly usage"))
         .child(div().text_size(10.5).text_color(t.dim).child(data ? `updated ${ago(data.updatedAt)}` : "loading…")))
       .children((data?.providers ?? []).map((p) => v_flex().gap(6)
         .child(h_flex().gap(6).items_center()
@@ -47,6 +48,6 @@ export default class AgentUsagePopup extends View {
           .child(div().font_semibold().text_color(t.muted).child(p.name)))
         .when(Boolean(p.error), (el) => el.child(div().text_size(11).text_color(t.blocked).child(p.error)))
         .when(!p.error && p.windows.length === 0, (el) => el.child(div().text_size(11).text_color(t.dim).child("No limits reported")))
-        .children(p.windows.map((w, i) => this.window(t, w, `${p.id}-${i}`)))));
+        .children(p.windows.filter((w) => w.kind !== "5h").map((w, i) => this.window(t, w, `${p.id}-${i}`)))));
   }
 }
