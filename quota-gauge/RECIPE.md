@@ -1,11 +1,11 @@
-# Agent Usage
+# Quota Gauge
 
 Your coding agents' rate limits in Herdr's status bar. After "N agents", each
 agent's logo is followed by how much of its 5-hour limit you've used: Claude
 and Antigravity by default. Click it for a popup with the weekly limits (and
 Copilot's monthly ones), each with a bar and the time until it resets.
 
-![Agent Usage](preview.png)
+![Quota Gauge](preview.png)
 
 ## What you see
 
